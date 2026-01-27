@@ -19,7 +19,7 @@ To check if you have access:
 Add to your `~/.tmux.conf`:
 
 ```bash
-set -g @plugin 'yourusername/tmux-claude'
+set -g @plugin 'ylchen07/tmux-claude'
 ```
 
 Then press `prefix + I` to install.
@@ -27,7 +27,7 @@ Then press `prefix + I` to install.
 ### Manual Installation
 
 ```bash
-git clone https://github.com/yourusername/tmux-claude ~/.tmux/plugins/tmux-claude
+git clone https://github.com/ylchen07/tmux-claude ~/.tmux/plugins/tmux-claude
 ```
 
 Add to `~/.tmux.conf`:
