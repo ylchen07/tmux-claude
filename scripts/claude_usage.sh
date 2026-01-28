@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Claude API usage fetcher for tmux status bar
+# Claude.ai usage fetcher for tmux status bar
+# Uses Claude.ai's internal API with browser session cookies
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/helpers.sh"
@@ -7,19 +8,55 @@ source "$CURRENT_DIR/helpers.sh"
 # Default values
 DEFAULT_CACHE_INTERVAL="300"
 DEFAULT_FORMAT="Claude: #P%"
-DEFAULT_MONTHLY_LIMIT=""
+DEFAULT_LIMIT_TYPE="5h"
 
-# Fetch usage from Anthropic API
-fetch_usage() {
-    local api_key="$1"
-    local starting_at="$2"
-    local ending_at="$3"
+# Fetch organization ID from Claude.ai
+fetch_org_id() {
+    local session_key="$1"
 
     local response
     response=$(curl -s -w "\n%{http_code}" \
-        "https://api.anthropic.com/v1/organizations/usage_report/messages?starting_at=${starting_at}&ending_at=${ending_at}&bucket_width=1mo" \
-        -H "x-api-key: ${api_key}" \
-        -H "anthropic-version: 2023-06-01")
+        "https://claude.ai/api/organizations" \
+        -H "Cookie: sessionKey=${session_key}" \
+        -H "Accept: application/json")
+
+    local http_code
+    http_code=$(echo "$response" | tail -1)
+    local body
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" != "200" ]]; then
+        echo "API_ERROR:${http_code}"
+        return 1
+    fi
+
+    # Parse org ID from response
+    local org_id
+    if command -v jq &>/dev/null; then
+        org_id=$(echo "$body" | jq -r '.[0].uuid // empty')
+    else
+        # Fallback: extract first uuid from response
+        org_id=$(echo "$body" | grep -o '"uuid":"[^"]*"' | head -1 | sed 's/"uuid":"//;s/"//')
+    fi
+
+    if [[ -z "$org_id" ]]; then
+        echo "PARSE_ERROR"
+        return 1
+    fi
+
+    echo "$org_id"
+}
+
+# Fetch usage from Claude.ai API
+fetch_usage() {
+    local session_key="$1"
+    local org_id="$2"
+
+    local response
+    response=$(curl -s -w "\n%{http_code}" \
+        "https://claude.ai/api/organizations/${org_id}/usage" \
+        -H "Cookie: sessionKey=${session_key}" \
+        -H "Accept: application/json")
 
     local http_code
     http_code=$(echo "$response" | tail -1)
@@ -34,32 +71,51 @@ fetch_usage() {
     echo "$body"
 }
 
-# Calculate total tokens from API response
-calculate_total_tokens() {
+# Extract utilization percentage from response
+extract_utilization() {
     local response="$1"
+    local limit_type="$2"
 
-    # Parse JSON and sum input_tokens + output_tokens from all buckets
-    # Using basic tools available on most systems
-    local total=0
+    local json_path
+    case "$limit_type" in
+        "5h"|"5hour"|"five_hour")
+            json_path="five_hour"
+            ;;
+        "7d"|"7day"|"seven_day")
+            json_path="seven_day"
+            ;;
+        "opus"|"seven_day_opus")
+            json_path="seven_day_opus"
+            ;;
+        "sonnet"|"seven_day_sonnet")
+            json_path="seven_day_sonnet"
+            ;;
+        *)
+            json_path="five_hour"
+            ;;
+    esac
 
+    local utilization
     if command -v jq &>/dev/null; then
-        total=$(echo "$response" | jq -r '[.data[].input_tokens, .data[].output_tokens] | add // 0')
+        utilization=$(echo "$response" | jq -r ".${json_path}.utilization // 0")
     else
-        # Fallback: basic grep/sed parsing
-        local input_tokens output_tokens
-        input_tokens=$(echo "$response" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*' | awk '{s+=$1} END {print s+0}')
-        output_tokens=$(echo "$response" | grep -o '"output_tokens":[0-9]*' | grep -o '[0-9]*' | awk '{s+=$1} END {print s+0}')
-        total=$((input_tokens + output_tokens))
+        # Fallback: extract utilization for the specified limit type
+        # This is more complex without jq, so we use a simpler approach
+        local pattern="\"${json_path}\"[^}]*\"utilization\":[[:space:]]*([0-9]+)"
+        utilization=$(echo "$response" | grep -oE "\"${json_path}\"[^}]*\"utilization\":[[:space:]]*[0-9]+" | grep -oE "[0-9]+$" | head -1)
+        if [[ -z "$utilization" ]]; then
+            utilization=0
+        fi
     fi
 
-    echo "$total"
+    echo "$utilization"
 }
 
 # Main function
 main() {
     # Get configuration from tmux options
-    local api_key
-    api_key=$(get_tmux_option "@claude_api_key" "")
+    local session_key
+    session_key=$(get_tmux_option "@claude_session_key" "")
 
     local cache_interval
     cache_interval=$(get_tmux_option "@claude_cache_interval" "$DEFAULT_CACHE_INTERVAL")
@@ -67,18 +123,15 @@ main() {
     local format
     format=$(get_tmux_option "@claude_format" "$DEFAULT_FORMAT")
 
-    local monthly_limit
-    monthly_limit=$(get_tmux_option "@claude_monthly_limit" "$DEFAULT_MONTHLY_LIMIT")
+    local limit_type
+    limit_type=$(get_tmux_option "@claude_limit_type" "$DEFAULT_LIMIT_TYPE")
 
-    # Check if API key is configured
-    if [[ -z "$api_key" ]]; then
-        echo "Claude: No API key"
-        return 0
-    fi
+    local org_id
+    org_id=$(get_tmux_option "@claude_org_id" "")
 
-    # Check if monthly limit is configured (required for percentage calculation)
-    if [[ -z "$monthly_limit" ]]; then
-        echo "Claude: No limit set"
+    # Check if session key is configured
+    if [[ -z "$session_key" ]]; then
+        echo "Claude: No session key"
         return 0
     fi
 
@@ -91,20 +144,46 @@ main() {
         return 0
     fi
 
-    # Fetch fresh data from API
-    local starting_at ending_at
-    starting_at=$(get_billing_start)
-    ending_at=$(get_current_timestamp)
+    # Get or fetch organization ID
+    if [[ -z "$org_id" ]]; then
+        org_id=$(get_cached_org_id)
+        if [[ -z "$org_id" ]]; then
+            org_id=$(fetch_org_id "$session_key")
 
+            # Check for errors
+            if [[ "$org_id" == API_ERROR:* ]]; then
+                local error_code="${org_id#API_ERROR:}"
+                case "$error_code" in
+                    401|403)
+                        echo "Claude: Session expired"
+                        ;;
+                    *)
+                        echo "Claude: API error"
+                        ;;
+                esac
+                return 0
+            fi
+
+            if [[ "$org_id" == "PARSE_ERROR" ]]; then
+                echo "Claude: Parse error"
+                return 0
+            fi
+
+            # Cache the org ID
+            cache_org_id "$org_id"
+        fi
+    fi
+
+    # Fetch usage data
     local response
-    response=$(fetch_usage "$api_key" "$starting_at" "$ending_at")
+    response=$(fetch_usage "$session_key" "$org_id")
 
     # Check for API errors
     if [[ "$response" == API_ERROR:* ]]; then
         local error_code="${response#API_ERROR:}"
         case "$error_code" in
             401|403)
-                echo "Claude: Auth error"
+                echo "Claude: Session expired"
                 ;;
             429)
                 echo "Claude: Rate limit"
@@ -116,26 +195,13 @@ main() {
         return 0
     fi
 
-    # Calculate usage
-    local total_tokens
-    total_tokens=$(calculate_total_tokens "$response")
-
-    # Calculate percentage
-    local percentage
-    if [[ "$monthly_limit" -gt 0 ]]; then
-        percentage=$((total_tokens * 100 / monthly_limit))
-    else
-        percentage=0
-    fi
-
-    # Cap at 100+ for overflow display
-    if [[ $percentage -gt 100 ]]; then
-        percentage="100+"
-    fi
+    # Extract utilization
+    local utilization
+    utilization=$(extract_utilization "$response" "$limit_type")
 
     # Format output
     local output
-    output=$(format_output "$percentage" "$format")
+    output=$(format_output "$utilization" "$format")
 
     # Cache the result
     write_cache "$cache_file" "$output"

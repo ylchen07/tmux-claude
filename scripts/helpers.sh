@@ -26,6 +26,11 @@ get_cache_file() {
     echo "$(get_cache_dir)/usage_cache"
 }
 
+# Get org ID cache file path
+get_org_id_cache_file() {
+    echo "$(get_cache_dir)/org_id"
+}
+
 # Check if cache is still valid
 is_cache_valid() {
     local cache_file="$1"
@@ -68,14 +73,28 @@ write_cache() {
     echo -e "${timestamp}\n${value}" > "$cache_file"
 }
 
-# Get the start of current billing period (1st of current month)
-get_billing_start() {
-    date -u +"%Y-%m-01T00:00:00Z"
+# Get cached organization ID
+get_cached_org_id() {
+    local org_id_file
+    org_id_file=$(get_org_id_cache_file)
+    if [[ -f "$org_id_file" ]]; then
+        cat "$org_id_file" 2>/dev/null
+    fi
 }
 
-# Get current timestamp in ISO 8601 format
-get_current_timestamp() {
-    date -u +"%Y-%m-%dT%H:%M:%SZ"
+# Cache organization ID
+cache_org_id() {
+    local org_id="$1"
+    local org_id_file
+    org_id_file=$(get_org_id_cache_file)
+    echo "$org_id" > "$org_id_file"
+}
+
+# Clear cached organization ID (useful when session expires)
+clear_org_id_cache() {
+    local org_id_file
+    org_id_file=$(get_org_id_cache_file)
+    rm -f "$org_id_file"
 }
 
 # Format the output string

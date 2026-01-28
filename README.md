@@ -1,16 +1,12 @@
 # tmux-claude
 
-A TPM-compatible tmux plugin to display Claude API usage percentage in the status bar.
+A TPM-compatible tmux plugin to display Claude.ai subscription usage in the status bar.
 
-## Prerequisites
+## How It Works
 
-This plugin requires an **Admin API key** from Anthropic, which is only available to organizations.
+This plugin uses Claude.ai's internal API to fetch your subscription usage percentage. It displays how much of your rate limit you've consumed (0-100%).
 
-To check if you have access:
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Navigate to Settings → Organization
-3. If you see organization settings and can access "Admin Keys", you have org access
-4. Create an Admin API key (starts with `sk-ant-admin-...`)
+**Note:** This uses an unofficial API that could change without notice. Session keys expire periodically (weeks to months) and will need to be refreshed.
 
 ## Installation
 
@@ -36,22 +32,38 @@ Add to `~/.tmux.conf`:
 run-shell ~/.tmux/plugins/tmux-claude/claude-usage.tmux
 ```
 
-## Configuration
+## Setup
+
+### Getting Your Session Key
+
+1. Open [claude.ai](https://claude.ai) in your browser and ensure you're logged in
+2. Open Developer Tools (F12 or Cmd+Option+I on Mac)
+3. Go to the **Network** tab
+4. Refresh the page
+5. Click on any request to `claude.ai`
+6. In the **Headers** section, find the `Cookie` header
+7. Look for `sessionKey=sk-ant-sid01-...` and copy the entire value (starting with `sk-ant-sid01-`)
+
+### Configuration
 
 Add these options to your `~/.tmux.conf`:
 
 ```bash
-# Required: Your Anthropic Admin API key
-set -g @claude_api_key "sk-ant-admin-..."
+# Required: Your session key from browser cookies
+set -g @claude_session_key "sk-ant-sid01-..."
 
-# Required: Your monthly token budget
-set -g @claude_monthly_limit "10000000"
+# Optional: Organization ID (auto-fetched if not set)
+# set -g @claude_org_id "..."
+
+# Optional: Which limit to show (default: "5h")
+# Options: "5h" (5-hour), "7d" (7-day), "opus", "sonnet"
+set -g @claude_limit_type "5h"
 
 # Optional: Cache duration in seconds (default: 300)
 set -g @claude_cache_interval "300"
 
 # Optional: Display format (default: "Claude: #P%")
-# #P is replaced with the percentage value
+# #P is replaced with the usage percentage
 set -g @claude_format "Claude: #P%"
 ```
 
@@ -73,32 +85,49 @@ tmux source ~/.tmux.conf
 
 | Status | Display |
 |--------|---------|
-| Normal | `Claude: 45%` |
-| Over limit | `Claude: 100+%` |
-| No API key | `Claude: No API key` |
-| No limit set | `Claude: No limit set` |
-| Auth error | `Claude: Auth error` |
+| Normal usage | `Claude: 45%` |
+| No session key | `Claude: No session key` |
+| Session expired | `Claude: Session expired` |
+| API error | `Claude: API error` |
 
-## How It Works
+## Limit Types
 
-1. The plugin fetches usage data from the Anthropic Admin API
-2. Results are cached to avoid excessive API calls (default: 5 minutes)
-3. Usage is calculated as: `(input_tokens + output_tokens) / monthly_limit * 100`
-4. The formatted result is displayed in your tmux status bar
+Claude.ai has multiple rate limits you can monitor:
+
+| Option | Description |
+|--------|-------------|
+| `5h` | 5-hour rolling limit (default) |
+| `7d` | 7-day rolling limit |
+| `opus` | 7-day Opus-specific limit |
+| `sonnet` | 7-day Sonnet-specific limit |
 
 ## Troubleshooting
 
-### "No API key" displayed
-Ensure you've set `@claude_api_key` in your tmux.conf and reloaded the configuration.
+### "No session key" displayed
 
-### "Auth error" displayed
-Your API key may be invalid or expired. Ensure you're using an Admin API key (`sk-ant-admin-...`), not a regular API key.
+Ensure you've set `@claude_session_key` in your tmux.conf and reloaded the configuration.
 
-### "No limit set" displayed
-Set your monthly token budget with `@claude_monthly_limit`.
+### "Session expired" displayed
+
+Your session key has expired. Follow the setup steps again to get a new session key from your browser.
 
 ### Usage not updating
-Check the cache interval setting. By default, the plugin only fetches new data every 5 minutes to avoid excessive API calls.
+
+The plugin caches results to avoid excessive API calls. By default, it only fetches new data every 5 minutes. You can adjust this with `@claude_cache_interval`.
+
+### Clearing cached data
+
+If you need to clear the cached organization ID (e.g., after switching accounts):
+
+```bash
+rm -rf ~/.cache/tmux-claude
+```
+
+## Caveats
+
+- **Unofficial API**: Claude.ai's internal API is not officially documented and could change without notice
+- **Session expiration**: Session keys expire after weeks to months; you'll need to refresh them periodically
+- **No official support**: Anthropic does not officially support this use case
 
 ## License
 

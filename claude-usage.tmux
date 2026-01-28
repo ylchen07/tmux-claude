@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tmux-claude - Display Claude API usage in tmux status bar
+# tmux-claude - Display Claude.ai subscription usage in tmux status bar
 # TPM plugin entry point
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,7 +7,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Default option values
 default_cache_interval="300"
 default_format="Claude: #P%"
-default_monthly_limit=""
+default_limit_type="5h"
 
 # Get tmux option with default fallback
 get_tmux_option() {
@@ -34,6 +34,11 @@ set_defaults() {
     current_value=$(tmux show-option -gqv "@claude_format")
     if [[ -z "$current_value" ]]; then
         tmux set-option -g "@claude_format" "$default_format"
+    fi
+
+    current_value=$(tmux show-option -gqv "@claude_limit_type")
+    if [[ -z "$current_value" ]]; then
+        tmux set-option -g "@claude_limit_type" "$default_limit_type"
     fi
 }
 
