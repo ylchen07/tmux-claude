@@ -1,12 +1,15 @@
 # tmux-claude
 
-A TPM-compatible tmux plugin to display Claude.ai subscription usage in the status bar.
+A TPM-compatible tmux plugin to display Claude subscription usage in the status bar.
 
 ## How It Works
 
-This plugin uses Claude.ai's internal API to fetch your subscription usage percentage. It displays how much of your rate limit you've consumed (0-100%).
+This plugin fetches your Claude subscription usage percentage and displays how much of your rate limit you've consumed (0-100%).
 
-**Note:** This uses an unofficial API that could change without notice. Session keys expire periodically (weeks to months) and will need to be refreshed.
+**Authentication methods (in priority order):**
+
+1. **OAuth API (Recommended)** - Uses Claude CLI credentials from `~/.claude/.credentials.json`. No manual setup required if you use Claude Code CLI.
+2. **Web API (Fallback)** - Uses browser session cookies. Requires manual session key extraction.
 
 ## Installation
 
@@ -34,7 +37,19 @@ run-shell ~/.tmux/plugins/tmux-claude/claude-usage.tmux
 
 ## Setup
 
-### Getting Your Session Key
+### Option 1: OAuth (Recommended - Zero Configuration)
+
+If you use [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), this plugin works automatically with no configuration needed.
+
+The CLI stores OAuth credentials in `~/.claude/.credentials.json` which are automatically refreshed when you use Claude Code. Just install the plugin and add `#{claude_usage}` to your status bar.
+
+**Requirements:**
+- Claude Code CLI installed and authenticated
+- OAuth credentials must include `user:profile` scope (default for CLI auth)
+
+### Option 2: Browser Session Key (Fallback)
+
+If you don't use Claude Code CLI, you can use browser session cookies:
 
 1. Open [claude.ai](https://claude.ai) in your browser and ensure you're logged in
 2. Open Developer Tools (F12 or Cmd+Option+I on Mac)
@@ -44,15 +59,23 @@ run-shell ~/.tmux/plugins/tmux-claude/claude-usage.tmux
 6. In the **Headers** section, find the `Cookie` header
 7. Look for `sessionKey=sk-ant-sid01-...` and copy the entire value (starting with `sk-ant-sid01-`)
 
-### Configuration
+Add to `~/.tmux.conf`:
+
+```bash
+set -g @claude_session_key "sk-ant-sid01-..."
+```
+
+**Note:** Session keys expire periodically (weeks to months) and will need to be refreshed manually.
+
+## Configuration
 
 Add these options to your `~/.tmux.conf`:
 
 ```bash
-# Required: Your session key from browser cookies
-set -g @claude_session_key "sk-ant-sid01-..."
+# Optional: Session key for Web API fallback (not needed if using Claude CLI)
+# set -g @claude_session_key "sk-ant-sid01-..."
 
-# Optional: Organization ID (auto-fetched if not set)
+# Optional: Organization ID for Web API (auto-fetched if not set)
 # set -g @claude_org_id "..."
 
 # Optional: Which limit to show (default: "5h")
@@ -86,13 +109,15 @@ tmux source ~/.tmux.conf
 | Status | Display |
 |--------|---------|
 | Normal usage | `Claude: 45%` |
-| No session key | `Claude: No session key` |
-| Session expired | `Claude: Session expired` |
+| No credentials | `Claude: No credentials` |
+| OAuth token expired | `Claude: Token expired` |
+| Session key expired | `Claude: Session expired` |
+| Authentication failed | `Claude: Auth failed` |
 | API error | `Claude: API error` |
 
 ## Limit Types
 
-Claude.ai has multiple rate limits you can monitor:
+Claude has multiple rate limits you can monitor:
 
 | Option | Description |
 |--------|-------------|
@@ -103,13 +128,23 @@ Claude.ai has multiple rate limits you can monitor:
 
 ## Troubleshooting
 
-### "No session key" displayed
+### "No credentials" displayed
 
-Ensure you've set `@claude_session_key` in your tmux.conf and reloaded the configuration.
+Neither OAuth credentials nor session key were found. Either:
+- Install and authenticate with [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), or
+- Set `@claude_session_key` in your tmux.conf
+
+### "Token expired" displayed
+
+Your OAuth token has expired. Run any Claude Code CLI command to refresh it:
+
+```bash
+claude --version
+```
 
 ### "Session expired" displayed
 
-Your session key has expired. Follow the setup steps again to get a new session key from your browser.
+Your browser session key has expired. Follow the setup steps again to get a new session key from your browser.
 
 ### Usage not updating
 
@@ -117,17 +152,48 @@ The plugin caches results to avoid excessive API calls. By default, it only fetc
 
 ### Clearing cached data
 
-If you need to clear the cached organization ID (e.g., after switching accounts):
+If you need to clear the cached data (e.g., after switching accounts):
 
 ```bash
 rm -rf ~/.cache/tmux-claude
 ```
 
-## Caveats
+## Dependencies
 
-- **Unofficial API**: Claude.ai's internal API is not officially documented and could change without notice
-- **Session expiration**: Session keys expire after weeks to months; you'll need to refresh them periodically
-- **No official support**: Anthropic does not officially support this use case
+- `curl` - for API requests
+- `jq` (optional but recommended) - for JSON parsing. Falls back to grep/sed if not available.
+- `bc` (optional) - for decimal math. Falls back gracefully if not available.
+
+## How OAuth Works
+
+The plugin reads Claude CLI's OAuth credentials from:
+1. **macOS Keychain** (preferred): Service name `Claude Code-credentials`
+2. **File fallback**: `~/.claude/.credentials.json`
+
+Credentials format:
+```json
+{
+  "claudeAiOauth": {
+    "accessToken": "sk-ant-oat...",
+    "refreshToken": "...",
+    "expiresAt": 1234567890000,
+    "scopes": ["user:profile", "user:inference"]
+  }
+}
+```
+
+It then calls the OAuth usage API:
+- **Endpoint:** `https://api.anthropic.com/api/oauth/usage`
+- **Auth:** Bearer token from credentials
+
+This approach is more reliable than browser cookies because:
+- Tokens are managed and refreshed by Claude CLI
+- No manual cookie extraction needed
+- More stable than the unofficial Web API
+
+## Credits
+
+Inspired by [CodexBar](https://github.com/steipete/CodexBar) for the OAuth API approach.
 
 ## License
 
