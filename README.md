@@ -87,9 +87,10 @@ set -g @claude_limit_type "5h"
 # Optional: Cache duration in seconds (default: 300)
 set -g @claude_cache_interval "300"
 
-# Optional: Display format (default: "Claude: #P%")
-# #P is replaced with the usage percentage
-set -g @claude_format "Claude: #P%"
+# Optional: Display format (default: "Claude: #P% #M")
+# #P is replaced with the percentage value
+# #M is replaced with "used" or "remaining" based on @claude_show_remaining
+set -g @claude_format "Claude: #P% #M"
 
 # Optional: Show remaining percentage instead of usage (default: "false")
 # When "true", shows how much quota is remaining (e.g., 55% left)
@@ -111,14 +112,26 @@ Then reload tmux:
 tmux source ~/.tmux.conf
 ```
 
+### Format Placeholders
+
+The `@claude_format` option supports these placeholders:
+
+- **#P** - Replaced with the percentage value (0-100)
+- **#M** - Replaced with "used" or "remaining" based on `@claude_show_remaining` setting
+
+Examples:
+- `"Claude: #P% #M"` → `Claude: 45% used` or `Claude: 55% remaining`
+- `"#P% left"` → `55% left` (when `@claude_show_remaining "true"`)
+- `"API: #P%"` → `API: 45%` (without mode indicator)
+
 ## Display Examples
 
 ### Normal Usage
 
 | Mode | Configuration | Display |
 |------|--------------|---------|
-| Usage (default) | `@claude_show_remaining "false"` | `Claude: 45%` (45% used) |
-| Remaining | `@claude_show_remaining "true"` | `Claude: 55%` (55% remaining) |
+| Usage (default) | `@claude_show_remaining "false"` | `Claude: 45% used` |
+| Remaining | `@claude_show_remaining "true"` | `Claude: 55% remaining` |
 
 ### Error States
 

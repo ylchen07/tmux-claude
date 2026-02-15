@@ -6,7 +6,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default option values
 default_cache_interval="300"
-default_format="Claude: #P%"
+default_format="Claude: #P% #M"
 default_limit_type="5h"
 default_show_remaining="false"
 

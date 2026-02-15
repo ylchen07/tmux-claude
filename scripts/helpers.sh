@@ -101,7 +101,10 @@ clear_org_id_cache() {
 format_output() {
     local percentage="$1"
     local format="$2"
+    local mode="${3:-used}"  # Default to "used" if not provided
 
-    # Replace #P with the percentage value
-    echo "${format//#P/$percentage}"
+    # Replace #P with the percentage value and #M with the mode
+    local output="${format//#P/$percentage}"
+    output="${output//#M/$mode}"
+    echo "$output"
 }

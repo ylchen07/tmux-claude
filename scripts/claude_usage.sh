@@ -7,7 +7,7 @@ source "$CURRENT_DIR/helpers.sh"
 
 # Default values
 DEFAULT_CACHE_INTERVAL="300"
-DEFAULT_FORMAT="Claude: #P%"
+DEFAULT_FORMAT="Claude: #P% #M"
 DEFAULT_LIMIT_TYPE="5h"
 DEFAULT_SHOW_REMAINING="false"
 
@@ -419,13 +419,15 @@ main() {
 
     # Calculate remaining percentage if requested
     local display_value="$utilization"
+    local mode="used"
     if [[ "$show_remaining" == "true" ]]; then
         display_value=$((100 - utilization))
+        mode="remaining"
     fi
 
     # Format output
     local output
-    output=$(format_output "$display_value" "$format")
+    output=$(format_output "$display_value" "$format" "$mode")
 
     # Cache the result
     write_cache "$cache_file" "$output"
