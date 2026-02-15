@@ -4,7 +4,9 @@ A TPM-compatible tmux plugin to display Claude subscription usage in the status 
 
 ## How It Works
 
-This plugin fetches your Claude subscription usage percentage and displays how much of your rate limit you've consumed (0-100%).
+This plugin fetches your Claude subscription usage percentage and displays either:
+- **Usage mode (default)**: How much of your rate limit you've consumed (0-100%)
+- **Remaining mode**: How much of your rate limit remains available (0-100%)
 
 **Authentication methods (in priority order):**
 
@@ -88,6 +90,11 @@ set -g @claude_cache_interval "300"
 # Optional: Display format (default: "Claude: #P%")
 # #P is replaced with the usage percentage
 set -g @claude_format "Claude: #P%"
+
+# Optional: Show remaining percentage instead of usage (default: "false")
+# When "true", shows how much quota is remaining (e.g., 55% left)
+# When "false", shows how much quota has been used (e.g., 45% used)
+set -g @claude_show_remaining "false"
 ```
 
 ## Usage
@@ -106,9 +113,17 @@ tmux source ~/.tmux.conf
 
 ## Display Examples
 
+### Normal Usage
+
+| Mode | Configuration | Display |
+|------|--------------|---------|
+| Usage (default) | `@claude_show_remaining "false"` | `Claude: 45%` (45% used) |
+| Remaining | `@claude_show_remaining "true"` | `Claude: 55%` (55% remaining) |
+
+### Error States
+
 | Status | Display |
 |--------|---------|
-| Normal usage | `Claude: 45%` |
 | No credentials | `Claude: No credentials` |
 | OAuth token expired | `Claude: Token expired` |
 | Session key expired | `Claude: Session expired` |

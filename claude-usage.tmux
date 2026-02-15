@@ -8,6 +8,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 default_cache_interval="300"
 default_format="Claude: #P%"
 default_limit_type="5h"
+default_show_remaining="false"
 
 # Get tmux option with default fallback
 get_tmux_option() {
@@ -39,6 +40,11 @@ set_defaults() {
     current_value=$(tmux show-option -gqv "@claude_limit_type")
     if [[ -z "$current_value" ]]; then
         tmux set-option -g "@claude_limit_type" "$default_limit_type"
+    fi
+
+    current_value=$(tmux show-option -gqv "@claude_show_remaining")
+    if [[ -z "$current_value" ]]; then
+        tmux set-option -g "@claude_show_remaining" "$default_show_remaining"
     fi
 }
 

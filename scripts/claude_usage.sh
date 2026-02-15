@@ -9,6 +9,7 @@ source "$CURRENT_DIR/helpers.sh"
 DEFAULT_CACHE_INTERVAL="300"
 DEFAULT_FORMAT="Claude: #P%"
 DEFAULT_LIMIT_TYPE="5h"
+DEFAULT_SHOW_REMAINING="false"
 
 # OAuth credentials locations
 CLAUDE_CREDENTIALS_FILE="${HOME}/.claude/.credentials.json"
@@ -308,6 +309,9 @@ main() {
     local limit_type
     limit_type=$(get_tmux_option "@claude_limit_type" "$DEFAULT_LIMIT_TYPE")
 
+    local show_remaining
+    show_remaining=$(get_tmux_option "@claude_show_remaining" "$DEFAULT_SHOW_REMAINING")
+
     local org_id
     org_id=$(get_tmux_option "@claude_org_id" "")
 
@@ -413,9 +417,15 @@ main() {
     local utilization
     utilization=$(extract_utilization "$response" "$limit_type")
 
+    # Calculate remaining percentage if requested
+    local display_value="$utilization"
+    if [[ "$show_remaining" == "true" ]]; then
+        display_value=$((100 - utilization))
+    fi
+
     # Format output
     local output
-    output=$(format_output "$utilization" "$format")
+    output=$(format_output "$display_value" "$format")
 
     # Cache the result
     write_cache "$cache_file" "$output"
