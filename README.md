@@ -1,6 +1,6 @@
 # tmux-claude
 
-A TPM-compatible tmux plugin to display Claude subscription usage in the status bar.
+A TPM-compatible tmux plugin to display Claude and GitHub Copilot subscription usage in the tmux status bar.
 
 ## How It Works
 
@@ -100,10 +100,10 @@ set -g @claude_show_remaining "false"
 
 ## Usage
 
-Add `#{claude_usage}` to your status bar:
+Add `#{claude_usage}` and/or `#{copilot_usage}` to your status bar:
 
 ```bash
-set -g status-right "#{claude_usage} | %H:%M"
+set -g status-right "#{claude_usage} | #{copilot_usage} | %H:%M"
 ```
 
 Then reload tmux:
@@ -124,14 +124,90 @@ Examples:
 - `"#P% left"` → `55% left` (when `@claude_show_remaining "true"`)
 - `"API: #P%"` → `API: 45%` (without mode indicator)
 
+---
+
+## GitHub Copilot Usage
+
+### Setup
+
+No manual configuration needed. The plugin reads your OAuth token from `~/.config/github-copilot/apps.json`, which is created automatically when you authenticate with any GitHub Copilot-enabled editor (VS Code, JetBrains, Neovim, etc.).
+
+### Copilot Configuration
+
+```bash
+# Optional: Cache duration in seconds (default: 300)
+set -g @copilot_cache_interval "300"
+
+# Optional: Display format (default: "Copilot: #C/#T")
+# #C - completions remaining
+# #T - completions total (monthly quota)
+# #H - chat remaining
+# #HT - chat total
+# #R - reset date
+set -g @copilot_format "Copilot: #C/#T"
+```
+
+### Copilot Format Placeholders
+
+| Placeholder | Meaning |
+|---|---|
+| `#C` | Completions remaining |
+| `#T` | Completions total (monthly quota) |
+| `#H` | Chat remaining |
+| `#HT` | Chat total |
+| `#R` | Reset date |
+
+Examples:
+- `"Copilot: #C/#T"` → `Copilot: 3948/4000`
+- `"Copilot #C left (resets #R)"` → `Copilot 3948 left (resets 2026-03-18)`
+- `"chat:#H comp:#C"` → `chat:50 comp:3948`
+
+### Copilot Display Examples
+
+| Display | Meaning |
+|---|---|
+| `Copilot: 3948/4000` | 3948 completions remaining out of 4000 |
+| `Copilot: No credentials` | `~/.config/github-copilot/apps.json` not found |
+| `Copilot: Auth failed` | OAuth token rejected (re-authenticate in your editor) |
+| `Copilot: API error` | GitHub API unreachable |
+
+### How Copilot Auth Works
+
+The plugin reads `~/.config/github-copilot/apps.json`:
+```json
+{
+  "github.com:...": {
+    "user": "your-username",
+    "oauth_token": "ghu_...",
+    "githubAppId": "..."
+  }
+}
+```
+
+It then calls GitHub's internal Copilot API:
+- **Endpoint:** `https://api.github.com/copilot_internal/user`
+- **Auth:** `token ghu_...`
+
+This is the same endpoint used by VS Code, JetBrains, and other editors to display Copilot quota.
+
+---
+
 ## Display Examples
 
-### Normal Usage
+### Claude
 
 | Mode | Configuration | Display |
 |------|--------------|---------|
 | Usage (default) | `@claude_show_remaining "false"` | `Claude: 45% used` |
 | Remaining | `@claude_show_remaining "true"` | `Claude: 55% remaining` |
+
+### Copilot
+
+| Format | Display |
+|--------|---------|
+| `Copilot: #C/#T` (default) | `Copilot: 3948/4000` |
+| `Copilot: #C left` | `Copilot: 3948 left` |
+| `chat:#H comp:#C` | `chat:50 comp:3948` |
 
 ### Error States
 
