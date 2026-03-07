@@ -31,6 +31,11 @@ get_org_id_cache_file() {
     echo "$(get_cache_dir)/org_id"
 }
 
+# Get Copilot cache file path
+get_copilot_cache_file() {
+    echo "$(get_cache_dir)/copilot_cache"
+}
+
 # Check if cache is still valid
 is_cache_valid() {
     local cache_file="$1"
