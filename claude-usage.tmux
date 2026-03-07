@@ -10,6 +10,10 @@ default_format="Claude: #P% #M"
 default_limit_type="5h"
 default_show_remaining="false"
 
+# Copilot default option values
+default_copilot_cache_interval="300"
+default_copilot_format="Copilot: #C/#T"
+
 # Get tmux option with default fallback
 get_tmux_option() {
     local option="$1"
@@ -46,13 +50,25 @@ set_defaults() {
     if [[ -z "$current_value" ]]; then
         tmux set-option -g "@claude_show_remaining" "$default_show_remaining"
     fi
+
+    current_value=$(tmux show-option -gqv "@copilot_cache_interval")
+    if [[ -z "$current_value" ]]; then
+        tmux set-option -g "@copilot_cache_interval" "$default_copilot_cache_interval"
+    fi
+
+    current_value=$(tmux show-option -gqv "@copilot_format")
+    if [[ -z "$current_value" ]]; then
+        tmux set-option -g "@copilot_format" "$default_copilot_format"
+    fi
 }
 
 # Register the interpolation
 do_interpolation() {
     local string="$1"
     local usage_script="$CURRENT_DIR/scripts/claude_usage.sh"
+    local copilot_script="$CURRENT_DIR/scripts/copilot_usage.sh"
     string="${string//\#\{claude_usage\}/#($usage_script)}"
+    string="${string//\#\{copilot_usage\}/#($copilot_script)}"
     echo "$string"
 }
 
